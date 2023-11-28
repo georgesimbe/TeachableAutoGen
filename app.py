@@ -41,18 +41,26 @@ class AdvisorFactory:
     """
     Factory class for creating instances of specialized advisors.
     """
+    advisor_cache = {}
+
     @staticmethod
     def create_advisor(advisor_type):
+        if advisor_type in AdvisorFactory.advisor_cache:
+            return AdvisorFactory.advisor_cache[advisor_type]
+
         if advisor_type == "FinancialAdvisor":
-            return FinancialAdvisor()
+            advisor = FinancialAdvisor()
         elif advisor_type == "CryptoAdvisor":
-            return CryptoAdvisor()
+            advisor = CryptoAdvisor()
         elif advisor_type == "FinancialPlanner":
-            return FinancialPlanner()
+            advisor = FinancialPlanner()
         elif advisor_type == "DebtRepairAdvisor":
-            return DebtRepairAdvisor()
+            advisor = DebtRepairAdvisor()
         else:
             raise ValueError("Invalid advisor type")
+
+        AdvisorFactory.advisor_cache[advisor_type] = advisor
+        return advisor
 
 class GroupManager:
     """
