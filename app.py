@@ -87,7 +87,12 @@ class GroupManager:
         if query_type in self.advisors:
             for keyword, advisor in self.advisors[query_type].items():
                 if keyword in user_input.lower():
-                    response = advisor.advise(user_input)
+                    try:
+                        response = advisor.advise(user_input)
+                    except ValueError as e:
+                        return f"Error: {str(e)}"
+                    except Exception as e:
+                        return f"Unexpected error: {str(e)}"
                     break
         # Add routing for other specialized agents here...
 
