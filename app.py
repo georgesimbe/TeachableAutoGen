@@ -145,6 +145,10 @@ class TeachableAgentWithLLMSelection:
         self.group_manager = group_manager
         self.api_key = config['openai']['api_key']
 
+        # Create GPTAssistantAgent instances
+        self.coder = GPTAssistantAgent("coder", llm_config=self.llm_config, instructions="You are a coder.")
+        self.analyst = GPTAssistantAgent("analyst", llm_config=self.llm_config, instructions="You are an analyst.")
+
 
     def load_feedback_dataset():
         # Implement logic to load feedback data from a file or database
@@ -162,12 +166,24 @@ class TeachableAgentWithLLMSelection:
         # Only learn from user feedback if not in production mode
         if not config['test_mode']:
             # Load feedback dataset
-            feedback_dataset = load_feedback_dataset()
+            feedback_dataset = self.load_feedback_dataset()
             # Update knowledge base or model parameters using feedback
-            update_knowledge_base(feedback_dataset)
+            self.update_knowledge_base(feedback_dataset)
         else:
             # In production, the agent should use its learned knowledge
-            use_learned_knowledge()
+            self.use_learned_knowledge()
+
+    def load_feedback_dataset(self):
+        # Implement logic to load feedback data from a file or database
+        pass
+
+    def update_knowledge_base(self, feedback_dataset):
+        # Implement logic to adjust the knowledge base or model parameters based on the feedback dataset
+        pass
+
+    def use_learned_knowledge(self):
+        # Implement logic to apply the learned knowledge in production mode
+        pass
 
     def respond_to_user(self, user_input, chat_history):
         response = self.group_manager.handle_query(user_input, chat_history)
@@ -422,6 +438,10 @@ if __name__ == "__main__":
     
     # Create UserProxyAgent
     user = UserProxyAgent("user", human_input_mode="ALWAYS")
+
+    # Setup Group Chat
+    groupchat = GroupChat(agents=[user, teachable_agent.coder, teachable_agent.analyst], messages=[], max_round=10)
+    manager = GroupChatManager(groupchat)
 
     # Start a continuous interaction loop
     chat_history = []
