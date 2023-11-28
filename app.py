@@ -219,19 +219,30 @@ def fetch_news_articles(topic):
         return f"Unexpected error: {str(e)}"
 
 def summarize_and_validate(data):
+    # Use Mistral model to summarize the data
     summary = mistral_llm(data)
-    return validate_with_gpt4(summary)
+    # Validate the summary using GPT-4
+    validation = validate_with_gpt4(summary)
+    # Check for factual accuracy and coherence in the validation
+    if "accurate" in validation.lower() and "coherent" in validation.lower():
+        return summary
+    else:
+        return "The summary was not accurate or coherent."
 def validate_with_gpt4(summary):
     try:
         response = openai.Completion.create(
             engine="gpt-4-1106-preview",
-            prompt=f"Please review this summary for accuracy: '{summary}'",
+            prompt=f"Please review this summary for accuracy and coherence: '{summary}'",
             max_tokens=100,
             api_key=config['openai']['api_key']
         )
         review = response.choices[0].text.strip()
         logging.info(f"Summary review: {review}")
-        return review if "satisfactory" in review.lower() else "Summary needs improvement."
+        # Check for factual accuracy and coherence in the review
+        if "accurate" in review.lower() and "coherent" in review.lower():
+            return "The summary is accurate and coherent."
+        else:
+            return "The summary is not accurate or coherent."
     except Exception as e:
         logging.exception("Error calling GPT-4 API for summary validation")
         return "Unable to validate summary."
