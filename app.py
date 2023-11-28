@@ -8,6 +8,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import time
 import random
+from autogen import UserProxyAgent, GPTAssistantAgent, GroupChat, GroupChatManager
+from autogen.agentchat.contrib.gpt_assistant_agent import GPTAssistantAgent
+from autogen.agentchat import AssistantAgent
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
