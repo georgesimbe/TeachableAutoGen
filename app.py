@@ -84,8 +84,34 @@ class TeachableAgentWithLLMSelection:
         return response if response else "No relevant data found."
 
     def call_openai_api(self, user_input):
-        # Existing implementation...
-        pass
+        # Implement rate limiting and retry logic to handle API limits
+        # This is a placeholder for the rate limiting and retry mechanism
+        # In a real-world scenario, this could involve a library like tenacity or retrying
+
+        # Add detailed error handling for different HTTP status codes
+        # This is a placeholder for the error handling mechanism
+        # In a real-world scenario, this could involve a try/except block with different handlers for each status code
+
+        # Ensure secure handling of API keys, possibly using environment variables or a secrets manager
+        # This is a placeholder for the secure handling of API keys
+        # In a real-world scenario, this could involve a secrets manager like AWS Secrets Manager or HashiCorp Vault
+
+        messages = [{"role": "user", "content": user_input}]
+        payload = {"model": "gpt-4-1106-preview", "messages": messages}
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+
+        try:
+            response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+            if response.status_code == 200:
+                return response.json()['choices'][0]['message']['content']
+            elif response.status_code == 429:
+                # Handle rate limit exceeded error
+                time.sleep(1)  # Wait for a second before retrying
+                return self.call_openai_api(user_input)
+            else:
+                return f"Error in API response: {response.status_code}, {response.text}"
+        except Exception as e:
+            return f"Exception in API call: {str(e)}"
 
 class CryptoAdvisor:
     def advise_on_crypto(self, query):
