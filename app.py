@@ -35,6 +35,23 @@ config = load_configurations()
 
 
 
+class AdvisorFactory:
+    """
+    Factory class for creating instances of specialized advisors.
+    """
+    @staticmethod
+    def create_advisor(advisor_type):
+        if advisor_type == "FinancialAdvisor":
+            return FinancialAdvisor()
+        elif advisor_type == "CryptoAdvisor":
+            return CryptoAdvisor()
+        elif advisor_type == "FinancialPlanner":
+            return FinancialPlanner()
+        elif advisor_type == "DebtRepairAdvisor":
+            return DebtRepairAdvisor()
+        else:
+            raise ValueError("Invalid advisor type")
+
 class GroupManager:
     """
     Manages a group of specialized agents.
@@ -43,18 +60,13 @@ class GroupManager:
         """
         Initialize the GroupManager with a set of specialized agents.
         """
-        self.financial_advisor = FinancialAdvisor()
-        self.crypto_advisor = CryptoAdvisor()
-        self.financial_planner = FinancialPlanner()
-        self.debt_repair_advisor = DebtRepairAdvisor()
-        # Initialize other specialized agents here...
         self.advisors = {
             "finance": {
-                "stock": self.financial_advisor,
-                "crypto": self.crypto_advisor,
-                "plan": self.financial_planner,
-                "budget": self.financial_planner,
-                "debt": self.debt_repair_advisor
+                "stock": AdvisorFactory.create_advisor("FinancialAdvisor"),
+                "crypto": AdvisorFactory.create_advisor("CryptoAdvisor"),
+                "plan": AdvisorFactory.create_advisor("FinancialPlanner"),
+                "budget": AdvisorFactory.create_advisor("FinancialPlanner"),
+                "debt": AdvisorFactory.create_advisor("DebtRepairAdvisor")
             }
             # Add other specialized agents here...
         }
