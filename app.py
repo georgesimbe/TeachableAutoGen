@@ -154,7 +154,17 @@ class TeachableAgentWithLLMSelection:
             return f"Exception in API call: {str(e)}"
 
 class CryptoAdvisor:
+    def validate_query(self, query):
+        # Implement query validation logic here
+        if not query:
+            return "Insufficient data for advice."
+        # Add more validation checks as needed
+        return None
+
     def advise_on_crypto(self, query):
+        validation_error = self.validate_query(query)
+        if validation_error:
+            return validation_error
         # Implement cryptocurrency advice logic here
         return "Cryptocurrency advice based on query"
 
