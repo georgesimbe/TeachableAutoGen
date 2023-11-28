@@ -211,6 +211,7 @@ class CryptoAdvisor:
         if not query:
             return "Insufficient data for advice."
         # Add more validation checks as needed
+        # If the query doesn't meet the criteria, return a prompt asking for more specific information
         return None
 
     def advise_on_crypto(self, query):
@@ -283,7 +284,7 @@ def classify_query(user_input, chat_history):
     if any(keyword in user_input.lower() for keyword in news_keywords):
         return "news"
     # Use chat_history to maintain context throughout the conversation
-    # Implement your logic here
+    # Implement your logic here to provide context-aware responses
     return "general"
 
 def fetch_financial_data(query):
@@ -396,6 +397,7 @@ def visualized_data(dataset):
         ax.set_title('Line Graph')
         ax.set_xlabel('Time')
         ax.set_ylabel('Values')
+    # Add conditions for other visualization types like scatter plots, heatmaps, and pie charts
     else:  # For other types, let's return a message
         return "Unable to visualize the given data."
 
