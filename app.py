@@ -73,22 +73,29 @@ class TeachableAgentWithLLMSelection:
         pass
 
 class CryptoAdvisor:
-    # Implement methods and logic specific to cryptocurrency advice
-    pass
+    def advise_on_crypto(self, query):
+        # Implement cryptocurrency advice logic here
+        return "Cryptocurrency advice based on query"
 
 class FinancialPlanner:
-    # Implement methods and logic for financial planning
-    pass
+    def create_financial_plan(self, query):
+        # Implement financial planning logic here
+        return "Financial plan based on query"
 
 class DebtRepairAdvisor:
-    # Implement methods and logic for debt repair
-    pass
+    def provide_debt_repair_advice(self, query):
+        # Implement debt repair advice logic here
+        return "Debt repair advice based on query"
 
 # Example of a specialized agent
 class FinancialAdvisor:
     def advise_on_finance(self, query):
         # Implement financial advice logic here
         return "Financial advice based on query"
+
+    def advise_on_investment(self, query):
+        # Implement investment advice logic here
+        return "Investment advice based on query"
 
 class GroupManager:
     # ... Existing __init__ method ...
