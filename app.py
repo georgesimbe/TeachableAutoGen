@@ -4,6 +4,8 @@ import logging
 from dotenv import load_dotenv
 import requests
 import openai
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
