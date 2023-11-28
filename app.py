@@ -268,7 +268,7 @@ class FinancialAdvisor:
 class GroupManager:
     # ... Existing __init__ method ...
 
-    def handle_query(self, user_input):
+    def handle_query(self, user_input, chat_history):
         # ... Existing logic ...
 
         # Use specialized advisors based on the query
@@ -282,6 +282,11 @@ class GroupManager:
             debt_repair = DebtRepairAdvisor()
             return debt_repair.provide_debt_repair_advice(user_input)
         # ... Additional conditions for other specialized agents ...
+
+        # Update chat history
+        chat_history.append({"role": "user", "content": user_input})
+        chat_history.append({"role": "assistant", "content": response})
+        return response
 
 
 
