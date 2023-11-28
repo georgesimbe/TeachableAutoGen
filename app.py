@@ -73,8 +73,8 @@ class GroupManager:
             # Add other specialized agents here...
         }
 
-    def handle_query(self, user_input):
-        query_type = classify_query(user_input)
+    def handle_query(self, user_input, chat_history):
+        query_type = classify_query(user_input, chat_history)
         response = None
         if query_type in self.advisors:
             for keyword, advisor in self.advisors[query_type].items():
@@ -138,8 +138,8 @@ class TeachableAgentWithLLMSelection:
             # In production, the agent should use its learned knowledge
             pass
 
-    def respond_to_user(self, user_input):
-        response = self.group_manager.handle_query(user_input)
+    def respond_to_user(self, user_input, chat_history):
+        response = self.group_manager.handle_query(user_input, chat_history)
         return response if response else "No relevant data found."
 
     def call_openai_api(self, user_input):
@@ -246,13 +246,15 @@ class GroupManager:
                 return f"Exception in API call: {str(e)}"
 
 # Define the functions for query classification, fetching financial data and news, summarizing and validating data
-def classify_query(user_input):
+def classify_query(user_input, chat_history):
     financial_keywords = ["stock", "crypto", "market", "investment", "financial", "economy"]
     news_keywords = ["news", "headline", "current events", "article", "report"]
     if any(keyword in user_input.lower() for keyword in financial_keywords):
         return "finance"
     if any(keyword in user_input.lower() for keyword in news_keywords):
         return "news"
+    # Use chat_history to maintain context throughout the conversation
+    # Implement your logic here
     return "general"
 
 def fetch_financial_data(query):
@@ -366,7 +368,8 @@ def visualized_data(dataset):
 
     # Save the plot to a file
     fig.savefig('plot.png')
-    return "A graph has been created and saved as plot.png"
+    # Return the plot as a response
+    return fig
 
 
 # Main execution
@@ -394,7 +397,7 @@ if __name__ == "__main__":
             break
 
         # Chat with TeachableAgent
-        response = teachable_agent.initiate_chat(user, message="Hi, I'm a teachable user assistant! What's on your mind?", chat_history=chat_history)
+        response = teachable_agent.respond_to_user(user_input, chat_history)
         print(response)
         chat_history.append({"role": "assistant", "content": response})
 
