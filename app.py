@@ -304,14 +304,24 @@ if __name__ == "__main__":
         group_manager=group_manager
     )
     
-# Create UserProxyAgent
-user = UserProxyAgent("user", human_input_mode="ALWAYS")
+    # Create UserProxyAgent
+    user = UserProxyAgent("user", human_input_mode="ALWAYS")
 
-# Chat with TeachableAgent
-teachable_agent.initiate_chat(user, message="Hi, I'm a teachable user assistant! What's on your mind?")
+    # Start a continuous interaction loop
+    while True:
+        # Chat with TeachableAgent
+        response = teachable_agent.initiate_chat(user, message="Hi, I'm a teachable user assistant! What's on your mind?")
+        print(response)
+        
+        # Get user input
+        user_input = input("You: ")
+        
+        # Break the loop if the user types 'exit' or 'quit'
+        if user_input.lower() in ['exit', 'quit']:
+            break
 
-# Update the database
-teachable_agent.learn_from_user_feedback()
-teachable_agent.close_db()
+    # Update the database
+    teachable_agent.learn_from_user_feedback()
+    teachable_agent.close_db()
 
 
