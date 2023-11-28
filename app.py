@@ -33,17 +33,32 @@ config = load_configurations()
 class GroupManager:
     def __init__(self):
         self.financial_advisor = FinancialAdvisor()
+        self.crypto_advisor = CryptoAdvisor()
+        self.financial_planner = FinancialPlanner()
+        self.debt_repair_advisor = DebtRepairAdvisor()
         # Initialize other specialized agents here...
 
     def handle_query(self, user_input):
-        # Example of routing to the FinancialAdvisor
-        if "stock" in user_input.lower():
-            response = self.financial_advisor.advise_on_finance(user_input)
-            if response:
-                # If visualization needed, call visualized_data
-                return visualized_data(response)
-            return response
+        query_type = classify_query(user_input)
+        response = None
+        if query_type == "finance":
+            if "stock" in user_input.lower():
+                response = self.financial_advisor.advise_on_finance(user_input)
+            elif "crypto" in user_input.lower():
+                response = self.crypto_advisor.advise_on_crypto(user_input)
+            elif "plan" in user_input.lower() or "budget" in user_input.lower():
+                response = self.financial_planner.create_financial_plan(user_input)
+            elif "debt" in user_input.lower():
+                response = self.debt_repair_advisor.provide_debt_repair_advice(user_input)
         # Add routing for other specialized agents here...
+
+        if response:
+            # If visualization needed, call visualized_data
+            return visualized_data(response)
+        elif response is None:
+            return "No relevant data found."
+        else:
+            return "Error occurred while processing the query."
         return None
 
 class TeachableAgentWithLLMSelection:
