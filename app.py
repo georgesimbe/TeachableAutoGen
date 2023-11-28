@@ -297,14 +297,18 @@ def fetch_news_articles(topic):
     except Exception as e:
         return f"Unexpected error: {str(e)}"
 
-def summarize_and_validate(data):
+def summarize_and_validate(data, user_input):
     # Use Mistral model to summarize the data
     summary = mistral_llm(data)
     # Validate the summary using GPT-4
     validation = validate_with_gpt4(summary)
-    # Check for factual accuracy and coherence in the validation
+    # Check for factual accuracy, coherence, and relevance in the validation
     if "accurate" in validation.lower() and "coherent" in validation.lower():
-        return summary
+        # Check relevance of the summary to the user's query
+        if user_input.lower() in summary.lower():
+            return summary
+        else:
+            return "The summary was not relevant to your query."
     else:
         return "The summary was not accurate or coherent."
 def validate_with_gpt4(summary):
