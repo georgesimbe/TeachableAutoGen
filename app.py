@@ -328,16 +328,18 @@ def visualized_data(dataset):
     # Determine the type of visualization
     if isinstance(dataset, dict):  # For simplicity, let's assume dict type data is for bar chart
         fig, ax = plt.subplots()
-        ax.bar(dataset.keys(), dataset.values())
+        sns.barplot(x=list(dataset.keys()), y=list(dataset.values()), ax=ax)
         ax.set_title('Bar Chart')
         ax.set_xlabel('Categories')
         ax.set_ylabel('Values')
-    else:  # For other types, let's assume it's for line graph
+    elif isinstance(dataset, list) and all(isinstance(i, tuple) and len(i) == 2 for i in dataset):  # For list of tuples, let's assume it's for line graph
         fig, ax = plt.subplots()
-        ax.plot(dataset)
+        sns.lineplot(x=[i[0] for i in dataset], y=[i[1] for i in dataset], ax=ax)
         ax.set_title('Line Graph')
         ax.set_xlabel('Time')
         ax.set_ylabel('Values')
+    else:  # For other types, let's return a message
+        return "Unable to visualize the given data."
 
     # Save the plot to a file
     fig.savefig('plot.png')
