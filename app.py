@@ -48,19 +48,25 @@ class GroupManager:
         self.financial_planner = FinancialPlanner()
         self.debt_repair_advisor = DebtRepairAdvisor()
         # Initialize other specialized agents here...
+        self.advisors = {
+            "finance": {
+                "stock": self.financial_advisor,
+                "crypto": self.crypto_advisor,
+                "plan": self.financial_planner,
+                "budget": self.financial_planner,
+                "debt": self.debt_repair_advisor
+            }
+            # Add other specialized agents here...
+        }
 
     def handle_query(self, user_input):
         query_type = classify_query(user_input)
         response = None
-        if query_type == "finance":
-            if "stock" in user_input.lower():
-                response = self.financial_advisor.advise_on_finance(user_input)
-            elif "crypto" in user_input.lower():
-                response = self.crypto_advisor.advise_on_crypto(user_input)
-            elif "plan" in user_input.lower() or "budget" in user_input.lower():
-                response = self.financial_planner.create_financial_plan(user_input)
-            elif "debt" in user_input.lower():
-                response = self.debt_repair_advisor.provide_debt_repair_advice(user_input)
+        if query_type in self.advisors:
+            for keyword, advisor in self.advisors[query_type].items():
+                if keyword in user_input.lower():
+                    response = advisor.advise(user_input)
+                    break
         # Add routing for other specialized agents here...
 
         if response:
@@ -94,7 +100,7 @@ class TeachableAgentWithLLMSelection:
 
     def learn_from_user_feedback(self):
         # Only learn from user feedback if not in production mode
-        if not IS_PROD:
+        if not config['test_mode']:
             # Implement logic to learn from stored logs
             pass
         else:
@@ -330,17 +336,20 @@ if __name__ == "__main__":
     user = UserProxyAgent("user", human_input_mode="ALWAYS")
 
     # Start a continuous interaction loop
+    chat_history = []
     while True:
-        # Chat with TeachableAgent
-        response = teachable_agent.initiate_chat(user, message="Hi, I'm a teachable user assistant! What's on your mind?")
-        print(response)
-        
         # Get user input
         user_input = input("You: ")
-        
+        chat_history.append({"role": "user", "content": user_input})
+
         # Break the loop if the user types 'exit' or 'quit'
         if user_input.lower() in ['exit', 'quit']:
             break
+
+        # Chat with TeachableAgent
+        response = teachable_agent.initiate_chat(user, message="Hi, I'm a teachable user assistant! What's on your mind?", chat_history=chat_history)
+        print(response)
+        chat_history.append({"role": "assistant", "content": response})
 
     # Update the database
     teachable_agent.learn_from_user_feedback()
