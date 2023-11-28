@@ -6,6 +6,8 @@ import requests
 import openai
 import matplotlib.pyplot as plt
 import seaborn as sns
+import time
+import random
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -90,6 +92,23 @@ class GroupManager:
             return "Error occurred while processing the query."
         return None
 
+def exponential_backoff_retry(func, max_retries=5):
+    """
+    Implements an exponential backoff retry strategy.
+    Args:
+        func (callable): The function to retry.
+        max_retries (int): The maximum number of retries. Default is 5.
+    Returns:
+        The result of the function call.
+    """
+    for n in range(max_retries):
+        try:
+            return func()
+        except RateLimitExceededError:
+            sleep_time = (2 ** n) + random.random()
+            time.sleep(sleep_time)
+    raise Exception("Maximum retries exceeded")
+
 class TeachableAgentWithLLMSelection:
     """
     A teachable agent that can select the appropriate language model based on the user's input.
@@ -141,17 +160,21 @@ class TeachableAgentWithLLMSelection:
         headers = {"Authorization": f"Bearer {self.api_key}"}
 
         try:
-            response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-            if response.status_code == 200:
-                return response.json()['choices'][0]['message']['content']
-            elif response.status_code == 429:
-                # Handle rate limit exceeded error
-                time.sleep(1)  # Wait for a second before retrying
-                return self.call_openai_api(user_input)
-            else:
-                return f"Error in API response: {response.status_code}, {response.text}"
+            def api_call():
+                response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+                if response.status_code == 200:
+                    return response.json()['choices'][0]['message']['content']
+                elif response.status_code == 429:
+                    raise RateLimitExceededError("Rate limit exceeded")
+                else:
+                    raise APIError(f"Error in API response: {response.status_code}, {response.text}")
+            return exponential_backoff_retry(api_call)
+        except RateLimitExceededError as e:
+            return f"Rate limit exceeded: {str(e)}"
+        except APIError as e:
+            return str(e)
         except Exception as e:
-            return f"Exception in API call: {str(e)}"
+            return f"Unexpected error: {str(e)}"
 
 class CryptoAdvisor:
     def validate_query(self, query):
