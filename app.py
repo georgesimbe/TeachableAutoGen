@@ -11,6 +11,11 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # Load configurations from environment and JSON
 def load_configurations():
+    """
+    Load configurations from environment and JSON.
+    Returns:
+        dict: The configuration dictionary.
+    """
     load_dotenv()
     with open('config.json') as config_file:
         config = json.load(config_file)
@@ -31,7 +36,13 @@ config = load_configurations()
 
 
 class GroupManager:
+    """
+    Manages a group of specialized agents.
+    """
     def __init__(self):
+        """
+        Initialize the GroupManager with a set of specialized agents.
+        """
         self.financial_advisor = FinancialAdvisor()
         self.crypto_advisor = CryptoAdvisor()
         self.financial_planner = FinancialPlanner()
@@ -62,7 +73,18 @@ class GroupManager:
         return None
 
 class TeachableAgentWithLLMSelection:
+    """
+    A teachable agent that can select the appropriate language model based on the user's input.
+    """
     def __init__(self, name, llm_config, teach_config, group_manager):
+        """
+        Initialize the TeachableAgentWithLLMSelection.
+        Args:
+            name (str): The name of the agent.
+            llm_config (dict): The configuration for the language model.
+            teach_config (dict): The configuration for the teaching process.
+            group_manager (GroupManager): The group manager that manages the specialized agents.
+        """
         self.name = name
         self.llm_config = llm_config
         self.teach_config = teach_config
