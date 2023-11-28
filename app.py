@@ -197,14 +197,24 @@ def mistral_llm(query):
         return None
 
 
-def visualized_data(data):
-    # Example of a simple visualization logic
-    # This would be replaced with actual visualization code
-    if IS_PROD:
-        return f"Visualized Data: {data}"
-    else:
-        # In test mode, possibly include more detailed visualizations for validation
-        return f"Test Mode Visualized Data: {data}"
+def visualized_data(dataset):
+    # Determine the type of visualization
+    if isinstance(dataset, dict):  # For simplicity, let's assume dict type data is for bar chart
+        fig, ax = plt.subplots()
+        ax.bar(dataset.keys(), dataset.values())
+        ax.set_title('Bar Chart')
+        ax.set_xlabel('Categories')
+        ax.set_ylabel('Values')
+    else:  # For other types, let's assume it's for line graph
+        fig, ax = plt.subplots()
+        ax.plot(dataset)
+        ax.set_title('Line Graph')
+        ax.set_xlabel('Time')
+        ax.set_ylabel('Values')
+
+    # Save the plot to a file
+    fig.savefig('plot.png')
+    return "A graph has been created and saved as plot.png"
 
 
 # Main execution
