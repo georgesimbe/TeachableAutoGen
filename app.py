@@ -184,21 +184,39 @@ def classify_query(user_input):
 
 def fetch_financial_data(query):
     api_key = os.getenv('ALPHA_VANTAGE_API_KEY')
-    url = f'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={query}&apikey={api_key}'
+    # Parse the query for more detailed input
+    parsed_query = parse_query(query)
+    url = f'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={parsed_query}&apikey={api_key}'
     try:
         response = requests.get(url)
-        return response.json() if response.status_code == 200 else "Error fetching financial data"
+        if response.status_code == 200:
+            return response.json()
+        elif response.status_code == 429:
+            return "API limit exceeded"
+        else:
+            return f"Error fetching financial data: {response.status_code}, {response.text}"
+    except requests.exceptions.RequestException as e:
+        return f"Network error: {str(e)}"
     except Exception as e:
-        return "Exception in fetching financial data"
+        return f"Unexpected error: {str(e)}"
 
 def fetch_news_articles(topic):
     api_key = os.getenv('ALPHA_VANTAGE_API_KEY')
-    url = f'https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={topic}&apikey={api_key}'
+    # Parse the topic for more detailed input
+    parsed_topic = parse_topic(topic)
+    url = f'https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={parsed_topic}&apikey={api_key}'
     try:
         response = requests.get(url)
-        return response.json() if response.status_code == 200 else "Error fetching news articles"
+        if response.status_code == 200:
+            return response.json()
+        elif response.status_code == 429:
+            return "API limit exceeded"
+        else:
+            return f"Error fetching news articles: {response.status_code}, {response.text}"
+    except requests.exceptions.RequestException as e:
+        return f"Network error: {str(e)}"
     except Exception as e:
-        return "Exception in fetching news articles"
+        return f"Unexpected error: {str(e)}"
 
 def summarize_and_validate(data):
     summary = mistral_llm(data)
