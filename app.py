@@ -82,6 +82,7 @@ class GroupManager:
                 "debt": AdvisorFactory.create_advisor("DebtRepairAdvisor")
             }
             # Add other specialized agents here...
+            # Add your agents here
         }
 
     def handle_query(self, user_input, chat_history):
@@ -231,6 +232,7 @@ class CryptoAdvisor:
             return "Insufficient data for advice."
         # Add more validation checks as needed
         # If the query doesn't meet the criteria, return a prompt asking for more specific information
+        # Add your validation logic here
         return None
 
     def advise_on_crypto(self, query):
@@ -238,16 +240,19 @@ class CryptoAdvisor:
         if validation_error:
             return validation_error
         # Implement cryptocurrency advice logic here
+        # Add your advice logic here
         return "Cryptocurrency advice based on query"
 
 class FinancialPlanner:
     def create_financial_plan(self, query):
         # Implement financial planning logic here
+        # Add your planning logic here
         return "Financial plan based on query"
 
 class DebtRepairAdvisor:
     def provide_debt_repair_advice(self, query):
         # Implement debt repair advice logic here
+        # Add your debt repair advice logic here
         return "Debt repair advice based on query"
 
 # Example of a specialized agent
