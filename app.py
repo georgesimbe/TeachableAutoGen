@@ -1,16 +1,35 @@
+# Standard library imports
 import json
 import os
 import logging
-from dotenv import load_dotenv
-import requests
-import openai
-import matplotlib.pyplot as plt
-import seaborn as sns
 import time
 import random
-from autogen import UserProxyAgent, GPTAssistantAgent, GroupChat, GroupChatManager
+
+# Third-party imports
+from dotenv import load_dotenv
+import requests
+import matplotlib.pyplot as plt
+import seaborn as sns
+import openai  # Assuming openai is a third-party package
+import pandas as pd
+from sqlalchemy import create_engine
+from sentiment_analyzer import analyze_sentiment  # Example import, replace with actual module
+
+
+# Local/application-specific imports
+import autogen
+from autogen import config_list_from_json
 from autogen.agentchat.contrib.gpt_assistant_agent import GPTAssistantAgent
-from autogen.agentchat import AssistantAgent
+from autogen import UserProxyAgent
+from tenacity import retry, stop_after_attempt, wait_exponential
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from sklearn.feature_extraction.text import TfidfVectorizer
+import nltk
+
+nltk.download('punkt')
+nltk.download('stopwords')
+USER_DATA_STORE = "user_data_store.json"
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -24,12 +43,9 @@ def load_configurations():
     load_dotenv()
     with open('config.json') as config_file:
         config = json.load(config_file)
-
-    openai_config = config.get('openai', {})
     config['openai'] = {
-        'api_key': os.getenv('OPENAI_API_KEY', openai_config.get('api_key'))
+        'api_key': os.getenv('OPENAI_API_KEY', openai_config.get('api_key'))  # Securely fetch API key
     }
-
     config['test_mode'] = os.getenv('TEST_MODE', 'False').lower() == 'true'
     config['llm_config'] = config.get('llm_config', {})
     config['teach_config'] = config.get('teach_config', {})
@@ -40,6 +56,186 @@ config = load_configurations()
 
 
 
+
+
+class GroupManager:
+    """
+    Manages a group of specialized agents.
+    """
+    def __init__(self):
+        """
+        Initialize the GroupManager with a set of specialized agents.
+        """
+        self.logger = logging.getLogger(__name__)
+        self.advisors = {}
+        self.load_advisor_config()
+
+    def load_advisor_config(self):
+        """
+        Load advisor configurations and initialize advisors.
+        """
+        try:
+            # Load configuration from a file or database
+            with open('advisor_config.json', 'r') as file:
+                config = json.load(file)
+
+            for category, advisor_types in config.items():
+                self.advisors[category] = {}
+                for keyword, advisor_type in advisor_types.items():
+                    self.advisors[category][keyword] = AdvisorFactory.create_advisor(advisor_type)
+
+            self.logger.info("Advisors initialized from configuration.")
+        except Exception as e:
+            self.logger.error(f"Error loading advisor configuration: {e}")
+
+    # def initialize_advisors(self):
+    #     """
+    #     Initialize advisors with default types.
+    #     """
+    #     advisors = {
+    #         "finance": {
+    #             "investing": AdvisorFactory.create_advisor("InvestingAdvisor"),
+    #             "trading": AdvisorFactory.create_advisor("TradingAdvisor"),
+    #             "budget": AdvisorFactory.create_advisor("BudgetAdvisor"),
+    #             "debt": AdvisorFactory.create_advisor("DebtAdvisor"),  
+    #             "crypto": AdvisorFactory.create_advisor("CryptoAdvisor"),
+    #             "financial_plan": AdvisorFactory.create_advisor("FinancialPlanner") 
+    #         }
+    #         # Add other specialized agents here...
+    #     }
+    #     self.logger.info("Initialized advisors: %s", advisors.keys())
+    #     return advisors
+
+    def add_advisor(self, category, keyword, advisor_type):
+        """
+        Add a new advisor to a specific category.
+        """
+        try:
+            advisor = AdvisorFactory.create_advisor(advisor_type)
+            if category not in self.advisors:
+                self.advisors[category] = {}
+            self.advisors[category][keyword] = advisor
+            self.logger.info("Added advisor: %s under category %s", keyword, category)
+        except ValueError as e:
+            self.logger.error("Error adding advisor: %s", e)
+
+    def remove_advisor(self, category, keyword):
+        """
+        Remove an advisor from a specific category.
+        """
+        if category in self.advisors and keyword in self.advisors[category]:
+            del self.advisors[category][keyword]
+            self.logger.info("Removed advisor: %s from category %s", keyword, category)
+        else:
+            self.logger.warning("Advisor or category not found: %s in %s", keyword, category)
+
+    def get_advisor(self, category, keyword):
+        """
+        Get an advisor from a specific category.
+        """
+        if category in self.advisors and keyword in self.advisors[category]:
+            return self.advisors[category][keyword]
+        else:
+            self.logger.warning("Advisor or category not found: %s in %s", keyword, category)
+            return None
+    
+    # Define functions to fetch user and conversation details
+    def get_user_metadata(user_id):
+        # Fetch user details from the database
+        # Example:
+        user = user_db.get(user_id)
+        is_premium = user.account_balance > PREMIUM_THRESHOLD
+        return {
+            "user_id": user_id,
+            "username": user.name,
+            "is_premium": is_premium,
+            "user_attributes": user.attributes
+        }
+
+    def get_conversation_metadata():
+        # Generate a unique ID for the conversation
+        # Example:
+        return {
+            "conversation_id": uuid.uuid4().hex,
+            "conversation_topic": detect_conversation_topic()
+        }
+
+    def handle_query(self, user_input, chat_history):
+        # Fetch user and conversation metadata
+        user_id = get_user_id()
+        user_metadata = get_user_metadata(user_id)
+        conversation_metadata = get_conversation_metadata()
+
+        # Process the query and obtain a response
+        response = self.group_manager.handle_query(user_input, chat_history)
+
+        # Append user input with metadata to chat history
+        chat_history.append({
+            "role": "user",
+            "content": user_input,
+            "timestamp": time.time(),
+            "sentiment": analyze_sentiment(user_input),
+            "metadata": {**user_metadata, **conversation_metadata}
+        })
+
+        # Append assistant response to chat history
+        chat_history.append({
+            "role": "assistant",
+            "content": response,
+            "timestamp": time.time(),
+            "metadata": {**user_metadata, **conversation_metadata}
+        })
+
+        return response
+
+
+    def handle_fallback_query(self, user_input, chat_history):
+        """
+        Handle queries that do not match any specific financial category.
+        Args:
+            user_input: The input query from the user.
+            chat_history: The chat history for context.
+        Returns:
+            A string response for the user.
+        """
+        # Check if the query is related to finance
+        if is_finance_related(user_input):
+            # Provide a generic financial advice or information
+            response = "I'm here to help with your financial queries. Could you please provide more details or ask a different finance-related question?"
+        else:
+            # If the query is unrelated to finance
+            response = ("While I specialize in finance, I'm here to help in any way I can. "
+                        "For non-finance related queries, I might have limited advice. "
+                        "Also, feel free to suggest any features or topics you'd like to see in future updates.")
+            # Log the suggestion for future reference
+            log_suggestion(user_input, chat_history)
+
+        # Record unresponsive or off-topic interactions
+        log_unresponsive_interaction(user_input, response, chat_history)
+
+        return response
+
+    def is_finance_related(user_input):
+        # Implement logic to determine if the query is related to finance
+        # Example: Check for financial keywords or use a classification model
+        return 'finance' in user_input.lower()  # Simplified example
+
+    def log_suggestion(user_input, chat_history):
+        # Implement logic to log user suggestions for future updates
+        # Example: Store in a database or a file
+        logging.info(f"User suggestion logged: {user_input}")
+
+    def log_unresponsive_interaction(user_input, response, chat_history):
+        # Log interactions where the agent couldn't provide a relevant response
+        chat_history.append({
+            "role": "unresponsive",
+            "user_input": user_input,
+            "response": response,
+            "timestamp": time.time()
+        })
+        logging.warning(f"Unresponsive interaction logged: User input: {user_input}, Response: {response}")
+
+    # Example implementation of AdvisorFactory
 class AdvisorFactory:
     """
     Factory class for creating instances of specialized advisors.
@@ -50,145 +246,111 @@ class AdvisorFactory:
     def create_advisor(advisor_type):
         if advisor_type in AdvisorFactory.advisor_cache:
             return AdvisorFactory.advisor_cache[advisor_type]
+        
+        elif advisor_type == "InvestingAdvisor":
+            advisor = InvestingAdvisor()
+            
+        elif advisor_type == "TradingAdvisor":
+            advisor = TradingAdvisor()
+        
+        elif advisor_type == "BudgetAdvisor":
+            advisor = BudgetAdvisor()
+            
+        elif advisor_type == "DefaultFinanceAdvisor":
+            advisor = DefaultFinanceAdvisor()
 
-        if advisor_type == "FinancialAdvisor":
-            advisor = FinancialAdvisor()
-        elif advisor_type == "CryptoAdvisor":
-            advisor = CryptoAdvisor()
-        elif advisor_type == "FinancialPlanner":
-            advisor = FinancialPlanner()
-        elif advisor_type == "DebtRepairAdvisor":
-            advisor = DebtRepairAdvisor()
         else:
             raise ValueError("Invalid advisor type")
-
         AdvisorFactory.advisor_cache[advisor_type] = advisor
         return advisor
+# Example Advisor classes
+class FinancialAdvisor:
+    def advise(self, query):
+        return f"Financial advice for query: {query}"
 
-class GroupManager:
-    """
-    Manages a group of specialized agents.
-    """
-    def __init__(self):
-        """
-        Initialize the GroupManager with a set of specialized agents.
-        """
-        self.advisors = {
-            "finance": {
-                "stock": AdvisorFactory.create_advisor("FinancialAdvisor"),
-                "crypto": AdvisorFactory.create_advisor("CryptoAdvisor"),
-                "plan": AdvisorFactory.create_advisor("FinancialPlanner"),
-                "budget": AdvisorFactory.create_advisor("FinancialPlanner"),
-                "debt": AdvisorFactory.create_advisor("DebtRepairAdvisor")
-            }
-            # Add other specialized agents here...
-            # Add your agents here
-        }
+class CryptoAdvisor:
+    def advise(self, query):
+        return f"Crypto advice for query: {query}"
 
-    def handle_query(self, user_input, chat_history):
-        query_type = classify_query(user_input, chat_history)
-        response = None
-        if query_type in self.advisors:
-            for keyword, advisor in self.advisors[query_type].items():
-                if keyword in user_input.lower():
-                    try:
-                        response = advisor.advise(user_input)
-                    except ValueError as e:
-                        return f"Error: {str(e)}"
-                    except Exception as e:
-                        return f"Unexpected error: {str(e)}"
-                    break
-        # Add routing for other specialized agents here...
+class FinancialPlanner:
+    def advise(self, query):
+        return f"Financial plan for query: {query}"
 
-        if response:
-            # If visualization needed, call visualized_data
-            return visualized_data(response)
-        elif response is None:
-            return "No relevant data found."
-        else:
-            return "Error occurred while processing the query."
-        return None
-
-def exponential_backoff_retry(func, max_retries=5, max_delay=60):
-    """
-    Implements an exponential backoff retry strategy.
-    Args:
-        func (callable): The function to retry.
-        max_retries (int): The maximum number of retries. Default is 5.
-        max_delay (int): The maximum delay between retries in seconds. Default is 60.
-    Returns:
-        The result of the function call.
-    """
-    for n in range(max_retries):
-        try:
-            return func()
-        except RateLimitExceededError:
-            sleep_time = min((2 ** n) + random.random(), max_delay)
-            time.sleep(sleep_time)
-    raise Exception("Maximum retries exceeded")
-
+class DebtRepairAdvisor:
+    def advise(self, query):
+        return f"Debt repair advice for query: {query}"
+ 
 class TeachableAgentWithLLMSelection:
-    """
-    A teachable agent that can select the appropriate language model based on the user's input.
-    """
     def __init__(self, name, llm_config, teach_config, group_manager):
-        """
-        Initialize the TeachableAgentWithLLMSelection.
-        Args:
-            name (str): The name of the agent.
-            llm_config (dict): The configuration for the language model.
-            teach_config (dict): The configuration for the teaching process.
-            group_manager (GroupManager): The group manager that manages the specialized agents.
-        """
         self.name = name
         self.llm_config = llm_config
         self.teach_config = teach_config
+        self.config = load_configurations()
         self.group_manager = group_manager
-        self.api_key = config['openai']['api_key']
-
-        # Create GPTAssistantAgent instances
+        self.api_key = self.config['openai']['api_key']
         self.coder = GPTAssistantAgent("coder", llm_config=self.llm_config, instructions="You are a coder.")
         self.analyst = GPTAssistantAgent("analyst", llm_config=self.llm_config, instructions="You are an analyst.")
 
+    def load_feedback_dataset(self):
+        try:
+            with open('feedback_data.json', 'r') as file:
+                feedback_dataset = json.load(file)
+            if not isinstance(feedback_dataset, list) or not all(
+                isinstance(entry, dict) and 'user_input' in entry and 'agent_response' in entry
+                for entry in feedback_dataset
+            ):
+                logging.error("Invalid structure in feedback data file.")
+                return []
+            return feedback_dataset
+        except FileNotFoundError:
+            logging.error("Feedback data file not found.")
+            return []
+        except json.JSONDecodeError:
+            logging.error("Error decoding feedback data file.")
+            return []
 
-    def load_feedback_dataset():
-        # Implement logic to load feedback data from a file or database
-        pass
+    def update_knowledge_base(self, feedback_dataset):
+        for feedback in feedback_dataset:
+            # Placeholder for updating knowledge base
+            pass
 
-    def update_knowledge_base(feedback_dataset):
-        # Implement logic to adjust the knowledge base or model parameters based on the feedback dataset
-        pass
-
-    def use_learned_knowledge():
-        # Implement logic to apply the learned knowledge in production mode
+    def use_learned_knowledge(self):
+        # Placeholder for using learned knowledge
         pass
 
     def learn_from_user_feedback(self):
-        # Only learn from user feedback if not in production mode
-        if not config['test_mode']:
-            # Load feedback dataset
+        if not self.config['test_mode']:
             feedback_dataset = self.load_feedback_dataset()
-            # Update knowledge base or model parameters using feedback
             self.update_knowledge_base(feedback_dataset)
         else:
-            # In production, the agent should use its learned knowledge
             self.use_learned_knowledge()
-
-    def load_feedback_dataset(self):
-        # Implement logic to load feedback data from a file or database
-        pass
-
-    def update_knowledge_base(self, feedback_dataset):
-        # Implement logic to adjust the knowledge base or model parameters based on the feedback dataset
-        pass
-
-    def use_learned_knowledge(self):
-        # Implement logic to apply the learned knowledge in production mode
-        pass
 
     def respond_to_user(self, user_input, chat_history):
         response = self.group_manager.handle_query(user_input, chat_history)
         return response if response else "No relevant data found."
+
+    def process_and_store_feedback(self, user_input, agent_response):
+        if not isinstance(user_input, str) or not isinstance(agent_response, str):
+            logging.error("Invalid data types for user input or agent response.")
+            return
+
+        feedback_entry = {
+            'user_input': user_input,
+            'agent_response': agent_response
+        }
+
+        try:
+            with open('feedback_data.json', 'a') as file:
+                json.dump(feedback_entry, file)
+                file.write('\n')
+        except IOError as e:
+            logging.error(f"Error writing feedback data: {e}")
+    def close_db(self):
+    # Close database connections if any
+    # Example:
+        if self.database_engine:
+            self.database_engine.dispose()
+        logging.info("Database connections closed.")
 
     def call_openai_api(self, user_input):
         # Implement rate limiting and retry logic to handle API limits
@@ -208,7 +370,12 @@ class TeachableAgentWithLLMSelection:
         headers = {"Authorization": f"Bearer {self.api_key}"}
 
         try:
-            def api_call():
+            @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, max=60))
+            def call_openai_api(self, user_input):
+                messages = [{"role": "user", "content": user_input}]
+                payload = {"model": "gpt-4-1106-preview", "messages": messages}
+                headers = {"Authorization": f"Bearer {self.api_key}"}
+
                 response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
                 if response.status_code == 200:
                     return response.json()['choices'][0]['message']['content']
@@ -224,97 +391,277 @@ class TeachableAgentWithLLMSelection:
         except Exception as e:
             logging.error(f"Unexpected error: {str(e)}", exc_info=True)
             return f"Unexpected error: {str(e)}"
+    
+    def process_feedback(self, feedback):
+        # Example processing logic: Validate and parse the feedback
+        if not isinstance(feedback, dict) or 'user_input' not in feedback or 'agent_response' not in feedback:
+            logging.error("Invalid feedback format")
+            return None
+        return {
+            'user_input': feedback['user_input'].strip(),
+            'agent_response': feedback['agent_response'].strip()
+        }
 
+    def log_interaction(self, user_input, agent_response):
+        log_entry = {
+            "user_input": user_input,
+            "agent_response": agent_response,
+            "timestamp": time.time()
+        }
+        with open('interaction_log.txt', 'a') as file:
+            file.write(json.dumps(log_entry) + '\n')
+
+    def perform_health_check(self):
+        # Check database connectivity
+        try:
+            engine = create_engine('postgresql://username:password@host:port/database')
+            with engine.connect() as conn:
+                conn.execute("SELECT 1")
+            return "Database connection is healthy"
+        except Exception as e:
+            return f"Database health check failed: {e}"
+
+    def clean_and_preprocess_data(self, data):
+        # Example cleaning/preprocessing logic
+        cleaned_data = {key: value.strip() for key, value in data.items()}
+        return cleaned_data
+
+    def process_and_store_feedback(self, user_input, agent_response):
+        feedback_entry = {
+            'user_input': user_input,
+            'agent_response': agent_response
+        }
+        processed_feedback = self.clean_and_preprocess_data(feedback_entry)
+        try:
+            engine = create_engine('postgresql://username:password@host:port/database')
+            pd.DataFrame([processed_feedback]).to_sql('feedback_data', engine, if_exists='append', index=False)
+        except Exception as e:
+            logging.error(f"Error storing feedback data: {e}")
+
+    def load_data_for_training(self):
+        try:
+            engine = create_engine('postgresql://username:password@host:port/database')
+            return pd.read_sql('SELECT * FROM feedback_data', engine)
+        except Exception as e:
+            logging.error(f"Error loading data for training: {e}")
+            return pd.DataFrame()
+
+
+class RateLimitExceededError(Exception):
+    pass
+class APIError(Exception):
+    pass
+
+def exponential_backoff_retry(func, max_retries=5, max_delay=60, exceptions_to_check=(Exception,), 
+                              growth_factor=2, jitter=True, on_retry=None):
+    """
+    Implements an exponential backoff retry strategy.
+    Args:
+        func (callable): The function to retry.
+        max_retries (int): The maximum number of retries. Default is 5.
+        max_delay (int): The maximum delay between retries in seconds. Default is 60.
+        exceptions_to_check (tuple): Exceptions that trigger a retry. Default is (Exception,).
+        growth_factor (float): The exponential growth factor. Default is 2.
+        jitter (bool): Whether to add random jitter to the wait time.
+        on_retry (callable): Optional callback function to execute after each retry.
+    Returns:
+        The result of the function call.
+    Raises:
+        Exception: If maximum retries are exceeded.
+    """
+    logger = logging.getLogger(__name__)
+    last_exception = None
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            return func()
+        except exceptions_to_check as e:
+            last_exception = e
+            sleep_time = min(growth_factor ** (attempt - 1), max_delay)
+            if jitter:
+                sleep_time += random.uniform(0, 1)
+            logger.warning(f"Retry {attempt}/{max_retries} after exception: {e}. Waiting {sleep_time} seconds.")
+            time.sleep(sleep_time)
+            if on_retry:
+                on_retry(attempt, e)
+
+    logger.error(f"Maximum retries exceeded. Last exception: {last_exception}")
+    raise last_exception or Exception("Maximum retries exceeded")
+
+# Example usage
+def my_function():
+    # Replace with a function that might fail
+    raise RateLimitExceededError("Rate limit exceeded")
+
+try:
+    result = exponential_backoff_retry(my_function, exceptions_to_check=(RateLimitExceededError,))
+except Exception as e:
+    print(f"Operation failed: {e}")
 class CryptoAdvisor:
-    def validate_query(self, query):
-        # Implement query validation logic here
-        if not query:
-            return "Insufficient data for advice."
-        # Add more validation checks as needed
-        # If the query doesn't meet the criteria, return a prompt asking for more specific information
-        # Add your validation logic here
+    ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY')
+
+    @staticmethod
+    def construct_alpha_vantage_url(function, from_currency, to_currency):
+        base_url = 'https://www.alphavantage.co/query'
+        return f'{base_url}?function={function}&from_currency={from_currency}&to_currency={to_currency}&apikey={CryptoAdvisor.ALPHA_VANTAGE_API_KEY}'
+
+    def fetch_crypto_data(self, crypto_name, to_currency='USD'):
+        """
+        Fetches cryptocurrency data.
+
+        Args:
+            crypto_name (str): The name of the cryptocurrency.
+            to_currency (str): The target currency (default is USD).
+
+        Returns:
+            dict: JSON response from the API or None in case of failure.
+        """
+        url = CryptoAdvisor.construct_alpha_vantage_url('CURRENCY_EXCHANGE_RATE', crypto_name, to_currency)
+        
+        try:
+            response = requests.get(url)
+            response.raise_for_status()  # Raises an HTTPError if the HTTP request returned an unsuccessful status code
+            return response.json()
+        except requests.exceptions.HTTPError as e:
+            logging.error(f"HTTPError in API call: {e}, URL: {url}")
+        except requests.exceptions.ConnectionError as e:
+            logging.error(f"ConnectionError in API call: {e}, URL: {url}")
+        except requests.exceptions.Timeout as e:
+            logging.error(f"TimeoutError in API call: {e}, URL: {url}")
+        except requests.exceptions.RequestException as e:
+            logging.error(f"RequestException in API call: {e}, URL: {url}")
+        except Exception as e:
+            logging.error(f"Unexpected error in API call: {str(e)}, URL: {url}")
         return None
 
     def advise_on_crypto(self, query):
-        validation_error = self.validate_query(query)
-        if validation_error:
-            return validation_error
-        # Implement cryptocurrency advice logic here
-        # Add your advice logic here
-        return "Cryptocurrency advice based on query"
+        crypto_name = query.split()[0]  # simplistic extraction
+        crypto_data = self.fetch_crypto_data(crypto_name)
+        if crypto_data is None:
+            return "Unable to fetch cryptocurrency data."
+        # Implement logic to analyze data and provide advice
+        exchange_rate = crypto_data.get("Realtime Currency Exchange Rate", {}).get("5. Exchange Rate", "No data")
+        advice = f"The current exchange rate of {crypto_name} is {exchange_rate}."
+        return advice
 
 class FinancialPlanner:
-    def create_financial_plan(self, query):
-        # Implement financial planning logic here
-        # Add your planning logic here
-        return "Financial plan based on query"
+    def create_financial_plan(self, user_data):
+        # user_data should contain information like income, expenses, savings, financial goals, etc.
+        # Implement logic to analyze user's financial data and suggest a plan
+        savings_plan = "Savings Plan: Save 20% of monthly income."
+        investment_plan = "Investment Plan: Diversify investments across stocks and bonds."
+        return f"{savings_plan}\n{investment_plan}"
+
 
 class DebtRepairAdvisor:
-    def provide_debt_repair_advice(self, query):
-        # Implement debt repair advice logic here
-        # Add your debt repair advice logic here
-        return "Debt repair advice based on query"
+    def provide_debt_repair_advice(self, debt_info):
+        # debt_info should contain details about user's debts
+        # Implement logic for creating a repayment plan or debt reduction strategy
+        repayment_plan = "Repayment Plan: Focus on high-interest debts first."
+        consolidation_advice = "Consider debt consolidation for multiple high-interest debts."
+        return f"{repayment_plan}\n{consolidation_advice}"
 
-# Example of a specialized agent
+
 class FinancialAdvisor:
-    def advise_on_finance(self, query):
-        # Implement financial advice logic here
-        return "Financial advice based on query"
+    """
+    Advisor specialized in offering financial advisory services.
+    """
+    
+    def get_user_profile(self, user_id):
+        # Fetch user profile from a database or other data source
+        # Placeholder for fetching user profile
+        return {
+            "user_id": user_id,
+            "name": "John Doe",
+            "budget": True,  # Indicates if the user has a budget setup
+            "long_term_goals": ["retirement", "buying a home"]
+        }
 
-    def advise_on_investment(self, query):
-        # Implement investment advice logic here
-        return "Investment advice based on query"
+    def interact_with_user(self, user_id):
+        """
+        Simulate interaction with the user to obtain additional details.
+        Args:
+            user_id (str): The user's unique identifier.
+        Returns:
+            tuple: A tuple containing interaction results and the user's profile.
+        """
+        user_profile = self.get_user_profile(user_id)
 
-class GroupManager:
-    # ... Existing __init__ method ...
+        # Implement logic to interact with the user based on the profile
+        # Example: Querying user preferences, financial goals, etc.
 
-    def handle_query(self, user_input, chat_history):
-        # ... Existing logic ...
+        # For now, let's assume these are the results from our simulated interaction
+        interaction_results = {
+            "budget_query": "Yes, I have a monthly budget set up." if user_profile["budget"] else "No, I haven't set up a budget yet.",
+            "savings_goals": "My long-term savings goal is to save for " + " and ".join(user_profile["long_term_goals"]) + "."
+        }
 
-        # Use specialized advisors based on the query
-        if "crypto" in user_input.lower():
-            advisor = CryptoAdvisor()
-            return advisor.advise_on_crypto(user_input)
-        elif "plan" in user_input.lower() or "budget" in user_input.lower():
-            planner = FinancialPlanner()
-            return planner.create_financial_plan(user_input)
-        elif "debt" in user_input.lower():
-            debt_repair = DebtRepairAdvisor()
-            return debt_repair.provide_debt_repair_advice(user_input)
-        # ... Additional conditions for other specialized agents ...
+        return interaction_results, user_profile
+    
+    def advise(self, user_id, query):
+        # Here we simulate interaction and retrieval of additional info
+        interaction_results, user_profile = self.interact_with_user(user_id)
+        # Integrate financial models or algorithms based on user data and interaction results
+        # Pseudo-code:
+        # advice = financial_model.generate_advice(user_profile, interaction_results)
+        
+        advice = f"Financial advice based on user's query about {query}."
+        return advice
 
-        # Update chat history
-        chat_history.append({"role": "user", "content": user_input})
-        chat_history.append({"role": "assistant", "content": response})
-        return response
 
 
 
  #Function to interact with GPT-4 API
     def call_openai_api(self, user_input):
-            messages = [{"role": "user", "content": user_input}]
-            payload = {"model": "gpt-4-1106-preview", "messages": messages}
-            headers = {"Authorization": f"Bearer {self.api_key}"}
+        """
+        Calls the OpenAI API with the provided user input.
 
-            try:
-                response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-                if response.status_code == 200:
-                    return response.json()['choices'][0]['message']['content']
-                return f"Error in API response: {response.status_code}, {response.text}"
-            except Exception as e:
-                return f"Exception in API call: {str(e)}"
+        Args:
+            user_input (str): The input from the user.
+
+        Returns:
+            str: The content of the response message or error message.
+        """
+        messages = [{"role": "user", "content": user_input}]
+        payload = {"model": "gpt-4-1106-preview", "messages": messages}
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+
+        try:
+            response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+            response.raise_for_status()  # Raises an HTTPError for bad responses
+            return response.json()['choices'][0]['message']['content']
+        except requests.exceptions.HTTPError as e:
+            logging.error(f"HTTPError in OpenAI API call: {e}, URL: {response.url}, Status Code: {response.status_code}")
+            return f"Error in API response: {response.status_code}, {response.text}"
+        except requests.exceptions.ConnectionError as e:
+            logging.error(f"ConnectionError in OpenAI API call: {e}, URL: {response.url}")
+            return "Error: Unable to connect to the OpenAI API."
+        except requests.exceptions.Timeout as e:
+            logging.error(f"TimeoutError in OpenAI API call: {e}, URL: {response.url}")
+            return "Error: Timeout while connecting to the OpenAI API."
+        except requests.exceptions.RequestException as e:
+            logging.error(f"RequestException in OpenAI API call: {e}, URL: {response.url}")
+            return "Error: Problem with the request to the OpenAI API."
+        except Exception as e:
+            logging.error(f"Unexpected error in OpenAI API call: {str(e)}")
+            return f"Unexpected error: {str(e)}"
 
 # Define the functions for query classification, fetching financial data and news, summarizing and validating data
-def classify_query(user_input, chat_history):
+def classify_query(self, user_input):
     financial_keywords = ["stock", "crypto", "market", "investment", "financial", "economy"]
     news_keywords = ["news", "headline", "current events", "article", "report"]
-    if any(keyword in user_input.lower() for keyword in financial_keywords):
+
+    # Tokenize and remove stopwords
+    tokens = word_tokenize(user_input.lower())
+    filtered_tokens = [word for word in tokens if word not in stopwords.words('english')]
+
+    # Check for keyword presence
+    if any(keyword in filtered_tokens for keyword in financial_keywords):
         return "finance"
-    if any(keyword in user_input.lower() for keyword in news_keywords):
+    elif any(keyword in filtered_tokens for keyword in news_keywords):
         return "news"
-    # Use chat_history to maintain context throughout the conversation
-    # Implement your logic here to provide context-aware responses
-    return "general"
+    else:
+        return "general"
 
 def fetch_financial_data(query):
     api_key = os.getenv('ALPHA_VANTAGE_API_KEY')
@@ -413,28 +760,61 @@ def mistral_llm(query):
 
 
 def visualized_data(dataset):
-    # Determine the type of visualization
-    if isinstance(dataset, dict):  # For simplicity, let's assume dict type data is for bar chart
+    
+    if isinstance(dataset, dict):
+        # Bar chart
         fig, ax = plt.subplots()
         sns.barplot(x=list(dataset.keys()), y=list(dataset.values()), ax=ax)
-        ax.set_title('Bar Chart')
-        ax.set_xlabel('Categories')
-        ax.set_ylabel('Values')
-    elif isinstance(dataset, list) and all(isinstance(i, tuple) and len(i) == 2 for i in dataset):  # For list of tuples, let's assume it's for line graph
+
+    elif isinstance(dataset, pd.DataFrame):
+
+            fig, ax = plt.subplots()
+            
+            if "Date" in dataset.columns:
+            
+                dataset.set_index("Date", inplace=True)  
+                sns.lineplot(data=dataset, ax=ax)
+                
+                ax.set(xlabel="Date", ylabel="Values")
+                ax.set_title("Time Series Plot")
+                
+            elif {"X_Axis", "Y_Axis"} <= set(dataset.columns):  
+
+                sns.scatterplot(data=dataset, x="X_Axis", y="Y_Axis", ax=ax)
+                
+                ax.set(xlabel="X_Axis", ylabel="Y_Axis") 
+                ax.set_title("Scatter Plot")
+                
+        
+    elif isinstance(dataset, list) and len(dataset) == 2 and all(isinstance(i, list) for i in dataset): 
+        # Heatmap
         fig, ax = plt.subplots()
-        sns.lineplot(x=[i[0] for i in dataset], y=[i[1] for i in dataset], ax=ax)
-        ax.set_title('Line Graph')
-        ax.set_xlabel('Time')
-        ax.set_ylabel('Values')
-    # Add conditions for other visualization types like scatter plots, heatmaps, and pie charts
-    else:  # For other types, let's return a message
-        return "Unable to visualize the given data."
+        sns.heatmap(dataset, ax=ax)
+        
+    elif isinstance(dataset, list) and isinstance(dataset[0], list):
+        # Clustermap
+        fig, ax = plt.subplots()
+        sns.clustermap(dataset, ax=ax)
+        
+    elif isinstance(dataset, list) and all(isinstance(i, tuple) and len(i) == 2 for i in dataset):
+        # Line graph
+        fig, ax = plt.subplots()
+        x = [i[0] for i in dataset]
+        y = [i[1] for i in dataset] 
+        sns.lineplot(x=x, y=y, ax=ax) 
+        
+    elif isinstance(dataset, list) and all(isinstance(i, tuple) and len(i) == 2 for i in dataset[0]):
+        # Scatter plot
+        fig, ax = plt.subplots()
+        x = [i[0] for i in dataset[0]]  
+        y = [i[1] for i in dataset[0]]
+        sns.scatterplot(x=x, y=y, ax=ax)
+        
+    else:
+        return "Unable to visualize data"
 
-    # Save the plot to a file
     fig.savefig('plot.png')
-    # Return the plot as a response
     return fig
-
 
 # Main execution
 if __name__ == "__main__":
@@ -447,11 +827,16 @@ if __name__ == "__main__":
     )
     
     # Create UserProxyAgent
-    user = UserProxyAgent("user", human_input_mode="ALWAYS")
+    user = UserProxyAgent(
+        name="user",
+        human_input_mode="ALWAYS",
+        llm_config=False  # or your specific configuration
+        # Add other parameters as needed
+    )
 
     # Setup Group Chat
-    groupchat = GroupChat(agents=[user, teachable_agent.coder, teachable_agent.analyst], messages=[], max_round=10)
-    manager = GroupChatManager(groupchat)
+    groupchat = autogen.GroupChat(agents=[user, teachable_agent.coder, teachable_agent.analyst], messages=[], max_round=10)
+    manager = autogen.GroupChatManager(groupchat)
 
     # Start a continuous interaction loop
     chat_history = []
